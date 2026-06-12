@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kanban do Evento</title>
+<style>
+  /* ── TOKENS ── */
+  :root {
+    --verde-escuro:  #1b4332;
+    --verde-medio:   #2d6a4f;
+    --verde-vivo:    #40916c;
+    --verde-claro:   #74c69d;
+    --verde-palido:  #b7e4c7;
+    --verde-fundo:   #d8f3dc;
+    --branco:        #f8fdf9;
+    --cinza-100:     #f0f4f1;
+    --cinza-300:     #c8d5ca;
+    --cinza-500:     #7a9980;
+    --cinza-700:     #3d5940;
+    --texto:         #1a2e1e;
+    --sombra:        rgba(27,67,50,.12);
+    --radius:        10px;
+    --radius-sm:     6px;
+    --trans:         .18s ease;
+  }
+
+  /* ── RESET ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--verde-fundo);
+    color: var(--texto);
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--verde-escuro);
+    color: var(--branco);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 12px var(--sombra);
+  }
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .header-icon { font-size: 24px; }
+  header h1 { font-size: 1.15rem; font-weight: 700; letter-spacing: .3px; }
+  header p  { font-size: .78rem; color: var(--verde-palido); margin-top: 1px; }
+  .btn-sync {
+    background: var(--verde-vivo);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 8px 14px;
+    font-size: .82rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background var(--trans);
+  }
+  .btn-sync:hover { background: var(--verde-claro); color: var(--verde-escuro); }
+  .btn-sync.loading { opacity: .7; pointer-events: none; }
+
+  /* ── STATUS BAR ── */
+  #status-bar {
+    text-align: center;
+    font-size: .78rem;
+    padding: 6px 16px;
+    background: var(--verde-medio);
+    color: var(--verde-palido);
+    min-height: 28px;
+  }
+  #status-bar.erro { background: #7f1d1d; color: #fca5a5; }
+  #status-bar.ok   { background: var(--verde-escuro); color: var(--verde-claro); }
+
+  /* ── FILTROS ── */
+  .filtros {
+    display: flex;
+    gap: 8px;
+    padding: 14px 16px 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .filtros label { font-size: .8rem; font-weight: 600; color: var(--cinza-700); }
+  .filtro-btn {
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1.5px solid var(--verde-medio);
+    background: transparent;
+    color: var(--verde-medio);
+    font-size: .78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--trans);
+  }
+  .filtro-btn.ativo, .filtro-btn:hover {
+    background: var(--verde-medio);
+    color: #fff;
+  }
+
+  /* ── GRID DE CATEGORIAS ── */
+  #board {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    padding: 12px 16px 32px;
+  }
+
+  /* ── CARD DE CATEGORIA ── */
+  .categoria {
+    background: var(--branco);
+    border-radius: var(--radius);
+    box-shadow: 0 2px 10px var(--sombra);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .cat-header {
+    background: var(--verde-escuro);
+    color: #fff;
+    padding: 12px 14px 10px;
+  }
+  .cat-header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .cat-icone { font-size: 1.2rem; }
+  .cat-nome  { font-size: .92rem; font-weight: 700; flex: 1; }
+  .cat-badge {
+    background: var(--verde-claro);
+    color: var(--verde-escuro);
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: .72rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  /* Barra de progresso */
+  .progresso-wrap {
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .progresso-bar {
+    flex: 1;
+    height: 5px;
+    background: rgba(255,255,255,.25);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progresso-fill {
+    height: 100%;
+    background: var(--verde-claro);
+    border-radius: 3px;
+    transition: width .4s ease;
+  }
+  .progresso-pct { font-size: .7rem; color: var(--verde-palido); white-space: nowrap; }
+
+  /* ── LISTA DE TAREFAS ── */
+  .cat-body {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+  }
+
+  /* ── CARTÃO DE TAREFA ── */
+  .tarefa {
+    background: var(--cinza-100);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    border-left: 4px solid var(--verde-claro);
+    position: relative;
+    transition: box-shadow var(--trans);
+  }
+  .tarefa:hover { box-shadow: 0 2px 8px var(--sombra); }
+  .tarefa[data-status="Concluído"] { opacity: .7; border-left-color: var(--cinza-300); }
+  .tarefa[data-status="Em andamento"] { border-left-color: var(--verde-vivo); }
+  .tarefa[data-status="Aguardando"]   { border-left-color: #d97706; }
+  .tarefa[data-status="A fazer"]      { border-left-color: var(--verde-claro); }
+
+  .tarefa-topo {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .tarefa-titulo {
+    font-size: .85rem;
+    font-weight: 700;
+    color: var(--verde-escuro);
+    line-height: 1.3;
+  }
+  .tarefa-acoes { display: flex; gap: 4px; flex-shrink: 0; }
+  .btn-acao {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: .95rem;
+    padding: 2px;
+    border-radius: 4px;
+    line-height: 1;
+    transition: background var(--trans);
+  }
+  .btn-acao:hover { background: var(--verde-palido); }
+
+  .tarefa-desc {
+    font-size: .78rem;
+    color: var(--cinza-700);
+    margin-bottom: 6px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .tarefa-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin-top: 4px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: .7rem;
+    padding: 2px 7px;
+    border-radius: 12px;
+    font-weight: 600;
+  }
+  .chip-resp { background: var(--verde-palido); color: var(--verde-escuro); }
+  .chip-data { background: #e0f2fe; color: #0369a1; }
+
+  .status-sel {
+    font-size: .7rem;
+    font-weight: 700;
+    border: none;
+    border-radius: 10px;
+    padding: 2px 7px;
+    cursor: pointer;
+    outline: none;
+    margin-left: auto;
+    background: var(--verde-palido);
+    color: var(--verde-escuro);
+  }
+  .status-sel[data-v="Em andamento"] { background: #d1fae5; color: #065f46; }
+  .status-sel[data-v="Aguardando"]   { background: #fef3c7; color: #92400e; }
+  .status-sel[data-v="Concluído"]    { background: #dcfce7; color: #14532d; }
+  .status-sel[data-v="A fazer"]      { background: #e0e7ff; color: #3730a3; }
+
+  /* ── BTN ADICIONAR ── */
+  .btn-add {
+    width: 100%;
+    padding: 9px;
+    background: none;
+    border: 1.5px dashed var(--verde-claro);
+    border-radius: var(--radius-sm);
+    color: var(--verde-vivo);
+    font-size: .82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--trans);
+    margin-top: 2px;
+  }
+  .btn-add:hover { background: var(--verde-palido); border-color: var(--verde-vivo); }
+
+  /* ── MODAL ── */
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.45);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .overlay.aberto { display: flex; }
+  .modal {
+    background: var(--branco);
+    border-radius: var(--radius);
+    width: 100%;
+    max-width: 480px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,.25);
+  }
+  .modal-header {
+    background: var(--verde-escuro);
+    color: #fff;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+  .modal-header h2 { font-size: 1rem; font-weight: 700; }
+  .modal-sub { font-size: .75rem; color: var(--verde-palido); margin-top: 2px; }
+  .btn-fechar {
+    background: none; border: none; color: #fff; font-size: 1.3rem;
+    cursor: pointer; line-height: 1; padding: 2px 6px; border-radius: 4px;
+  }
+  .btn-fechar:hover { background: rgba(255,255,255,.2); }
+
+  .modal-body { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+  .campo label { display: block; font-size: .78rem; font-weight: 700; color: var(--cinza-700); margin-bottom: 4px; }
+  .campo input, .campo textarea, .campo select {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1.5px solid var(--cinza-300);
+    border-radius: var(--radius-sm);
+    font-size: .85rem;
+    font-family: inherit;
+    color: var(--texto);
+    background: #fff;
+    transition: border-color var(--trans);
+    outline: none;
+  }
+  .campo input:focus, .campo textarea:focus, .campo select:focus {
+    border-color: var(--verde-vivo);
+  }
+  .campo textarea { resize: vertical; min-height: 80px; }
+
+  .modal-footer {
+    padding: 14px 18px;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    border-top: 1px solid var(--cinza-300);
+  }
+  .btn-salvar {
+    background: var(--verde-escuro);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 10px 22px;
+    font-size: .87rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background var(--trans);
+  }
+  .btn-salvar:hover { background: var(--verde-vivo); }
+  .btn-salvar:disabled { opacity: .6; pointer-events: none; }
+  .btn-cancelar {
+    background: none;
+    border: 1.5px solid var(--cinza-300);
+    border-radius: var(--radius-sm);
+    padding: 10px 18px;
+    font-size: .87rem;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--cinza-700);
+    transition: all var(--trans);
+  }
+  .btn-cancelar:hover { border-color: var(--cinza-500); color: var(--texto); }
+
+  /* ── MODAL CONFIRMAR ── */
+  .modal-confirmar { max-width: 360px; }
+  .confirmar-msg { padding: 22px 18px; font-size: .9rem; color: var(--texto); line-height: 1.5; }
+  .btn-excluir {
+    background: #dc2626;
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 10px 18px;
+    font-size: .87rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .btn-excluir:hover { background: #b91c1c; }
+
+  /* ── EMPTY STATE ── */
+  .empty {
+    text-align: center;
+    color: var(--cinza-500);
+    font-size: .78rem;
+    padding: 16px 8px;
+  }
+
+  /* ── SPINNER ── */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { display: inline-block; animation: spin .7s linear infinite; }
+
+  /* ── TOAST ── */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--verde-escuro);
+    color: #fff;
+    padding: 10px 22px;
+    border-radius: 24px;
+    font-size: .85rem;
+    font-weight: 600;
+    box-shadow: 0 4px 16px var(--sombra);
+    z-index: 999;
+    transition: transform .3s ease;
+    white-space: nowrap;
+  }
+  #toast.visivel { transform: translateX(-50%) translateY(0); }
+
+  /* ── CONFIG BANNER ── */
+  #config-banner {
+    background: #fef3c7;
+    border-bottom: 2px solid #f59e0b;
+    padding: 14px 18px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  #config-banner .icon { font-size: 1.3rem; flex-shrink: 0; }
+  #config-banner p { font-size: .82rem; color: #78350f; line-height: 1.5; }
+  #config-banner strong { font-weight: 700; }
+  #config-banner code {
+    background: #fde68a;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: .8rem;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 480px) {
+    #board { grid-template-columns: 1fr; padding: 10px 10px 28px; gap: 12px; }
+    .filtros { padding: 10px 10px 4px; }
+    header h1 { font-size: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════
+     CONFIGURAÇÃO: cole a URL do Apps Script aqui
+     ════════════════════════════════════ -->
+<script>
+  // ▼▼▼ COLE A URL DO SEU APPS SCRIPT AQUI ▼▼▼
+  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzrriq1x17UzqN0hRvVFcdBB4CTYfKSagnJ4DdD3KcRI6mYjITaZ1Zp68I27CxLJy6L/exec";
+  // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+</script>
+
+<!-- HEADER -->
+<header>
+  <div class="header-left">
+    <span class="header-icon">🌿</span>
+    <div>
+      <h1>Kanban do Evento</h1>
+      <p>Organização de áreas e tarefas</p>
+    </div>
+  </div>
+  <button class="btn-sync" id="btn-sync" onclick="carregarTarefas()">
+    <span id="sync-icon">↻</span> Atualizar
+  </button>
+</header>
+
+<!-- STATUS BAR -->
+<div id="status-bar">Carregando dados…</div>
+
+<!-- BANNER DE CONFIGURAÇÃO (some após configurar) -->
+<div id="config-banner" style="display:none">
+  <span class="icon">⚙️</span>
+  <p>
+    <strong>Configure o sistema:</strong> Abra o arquivo <code>index.html</code>, localize a variável
+    <code>APPS_SCRIPT_URL</code> e substitua <code>COLE_A_URL_AQUI</code> pela URL do seu Web App.
+    Consulte o arquivo <code>INSTRUCOES.md</code> para o passo a passo completo.
+  </p>
+</div>
+
+<!-- FILTROS DE STATUS -->
+<div class="filtros">
+  <label>Filtrar:</label>
+  <button class="filtro-btn ativo" data-filtro="Todos" onclick="filtrar(this)">Todos</button>
+  <button class="filtro-btn" data-filtro="A fazer" onclick="filtrar(this)">A fazer</button>
+  <button class="filtro-btn" data-filtro="Em andamento" onclick="filtrar(this)">Em andamento</button>
+  <button class="filtro-btn" data-filtro="Aguardando" onclick="filtrar(this)">Aguardando</button>
+  <button class="filtro-btn" data-filtro="Concluído" onclick="filtrar(this)">Concluído</button>
+</div>
+
+<!-- BOARD -->
+<div id="board"></div>
+
+<!-- MODAL EDITAR / CRIAR -->
+<div class="overlay" id="overlay-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <h2 id="modal-titulo">Nova tarefa</h2>
+        <div class="modal-sub" id="modal-sub"></div>
+      </div>
+      <button class="btn-fechar" onclick="fecharModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="campo-id">
+      <input type="hidden" id="campo-categoria">
+      <div class="campo">
+        <label>Título</label>
+        <input type="text" id="campo-titulo" placeholder="Ex: Confirmar buffet">
+      </div>
+      <div class="campo">
+        <label>Descrição</label>
+        <textarea id="campo-desc" placeholder="Detalhes adicionais…"></textarea>
+      </div>
+      <div class="campo">
+        <label>Responsável(eis)</label>
+        <input type="text" id="campo-resp" placeholder="Ex: Ana, Carlos">
+      </div>
+      <div class="campo">
+        <label>Data</label>
+        <input type="date" id="campo-data">
+      </div>
+      <div class="campo">
+        <label>Status</label>
+        <select id="campo-status">
+          <option>A fazer</option>
+          <option>Em andamento</option>
+          <option>Aguardando</option>
+          <option>Concluído</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancelar" onclick="fecharModal()">Cancelar</button>
+      <button class="btn-salvar" id="btn-salvar" onclick="salvarTarefa()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONFIRMAR EXCLUSÃO -->
+<div class="overlay" id="overlay-confirmar">
+  <div class="modal modal-confirmar">
+    <div class="modal-header">
+      <div><h2>Excluir tarefa</h2></div>
+      <button class="btn-fechar" onclick="fecharConfirmar()">✕</button>
+    </div>
+    <div class="confirmar-msg">Tem certeza que deseja excluir esta tarefa? Esta ação não pode ser desfeita.</div>
+    <div class="modal-footer">
+      <button class="btn-cancelar" onclick="fecharConfirmar()">Cancelar</button>
+      <button class="btn-excluir" id="btn-excluir-ok">Excluir</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+/* ══════════════════════════════════════
+   DADOS ESTÁTICOS
+══════════════════════════════════════ */
+const CATEGORIAS = [
+  { nome: "Coordenação Geral",         icone: "🧭" },
+  { nome: "Programação / Espiritual",  icone: "🕊️" },
+  { nome: "Dinâmica e Integração",     icone: "🤝" },
+  { nome: "Alimentação",               icone: "🍽️" },
+  { nome: "Hospedagem / Acomodação",   icone: "🛏️" },
+  { nome: "Limpeza e Organização",     icone: "🧹" },
+  { nome: "Infra / Técnica",           icone: "🔧" },
+  { nome: "Saúde / Segurança",         icone: "🏥" },
+  { nome: "Logística / Transporte",    icone: "🚌" },
+  { nome: "Secretaria / Controle",     icone: "📋" },
+  { nome: "Identidade / Ambientação",  icone: "🎨" },
+];
+
+const STATUS_OPTS = ["A fazer", "Em andamento", "Aguardando", "Concluído"];
+
+/* ══════════════════════════════════════
+   ESTADO
+══════════════════════════════════════ */
+let tarefas       = [];        // todas do servidor
+let filtroAtivo   = "Todos";
+let idExcluindo   = null;
+let modoOffline   = false;
+
+/* ══════════════════════════════════════
+   UTILITÁRIOS
+══════════════════════════════════════ */
+function toast(msg, dur = 2600) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("visivel");
+  setTimeout(() => el.classList.remove("visivel"), dur);
+}
+
+function setStatus(msg, cls = "") {
+  const bar = document.getElementById("status-bar");
+  bar.textContent = msg;
+  bar.className = cls;
+}
+
+function fmtData(d) {
+  if (!d) return "";
+  const [y, m, dia] = d.split("-");
+  return `${dia}/${m}/${y}`;
+}
+
+function gerarId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+function configInvalida() {
+  return !APPS_SCRIPT_URL || APPS_SCRIPT_URL === "COLE_A_URL_AQUI";
+}
+
+/* ══════════════════════════════════════
+   API — GOOGLE APPS SCRIPT
+══════════════════════════════════════ */
+// Tudo via GET — evita CORS preflight no Apps Script
+async function apiCall(params) {
+  if (configInvalida()) throw new Error("URL não configurada");
+  const url = new URL(APPS_SCRIPT_URL);
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, String(v)));
+  const resp = await fetch(url.toString());
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const json = await resp.json();
+  if (json.error) throw new Error(json.error);
+  return json;
+}
+
+async function apiFetch(params) { return apiCall(params); }
+
+async function apiPost(body) {
+  const params = { acao: body.acao };
+  if (body.tarefa) params.payload = encodeURIComponent(JSON.stringify(body.tarefa));
+  if (body.id)     params.id      = body.id;
+  return apiCall(params);
+}
+
+/* ══════════════════════════════════════
+   CARREGAR TAREFAS
+══════════════════════════════════════ */
+async function carregarTarefas() {
+  const btn  = document.getElementById("btn-sync");
+  const icon = document.getElementById("sync-icon");
+  btn.classList.add("loading");
+  icon.classList.add("spin");
+  setStatus("Buscando dados da planilha…");
+
+  if (configInvalida()) {
+    document.getElementById("config-banner").style.display = "flex";
+    setStatus("⚠️ Configure a URL do Apps Script para conectar à planilha.", "erro");
+    btn.classList.remove("loading");
+    icon.classList.remove("spin");
+    renderBoard();
+    return;
+  }
+
+  try {
+    const res = await apiFetch({ acao: "listar" });
+    tarefas = res.tarefas || [];
+    modoOffline = false;
+    setStatus(`✓ ${tarefas.length} tarefa(s) carregada(s) — ${new Date().toLocaleTimeString("pt-BR")}`, "ok");
+    document.getElementById("config-banner").style.display = "none";
+  } catch (e) {
+    setStatus(`Erro ao carregar: ${e.message}`, "erro");
+    toast("Não foi possível conectar à planilha.");
+  }
+
+  renderBoard();
+  btn.classList.remove("loading");
+  icon.classList.remove("spin");
+}
+
+/* ══════════════════════════════════════
+   RENDER
+══════════════════════════════════════ */
+function renderBoard() {
+  const board = document.getElementById("board");
+  board.innerHTML = "";
+
+  CATEGORIAS.forEach(cat => {
+    let tasks = tarefas.filter(t => t.categoria === cat.nome);
+    if (filtroAtivo !== "Todos") tasks = tasks.filter(t => t.status === filtroAtivo);
+
+    const total     = tarefas.filter(t => t.categoria === cat.nome).length;
+    const concluido = tarefas.filter(t => t.categoria === cat.nome && t.status === "Concluído").length;
+    const pct       = total ? Math.round((concluido / total) * 100) : 0;
+
+    const el = document.createElement("div");
+    el.className = "categoria";
+    el.innerHTML = `
+      <div class="cat-header">
+        <div class="cat-header-top">
+          <span class="cat-icone">${cat.icone}</span>
+          <span class="cat-nome">${cat.nome}</span>
+          <span class="cat-badge">${total} tarefa${total !== 1 ? "s" : ""}</span>
+        </div>
+        <div class="progresso-wrap">
+          <div class="progresso-bar">
+            <div class="progresso-fill" style="width:${pct}%"></div>
+          </div>
+          <span class="progresso-pct">${pct}% concluído</span>
+        </div>
+      </div>
+      <div class="cat-body" id="body-${slug(cat.nome)}">
+        ${tasks.length === 0
+          ? `<div class="empty">${filtroAtivo === "Todos" ? "Nenhuma tarefa ainda." : "Nenhuma tarefa com este status."}</div>`
+          : tasks.map(renderTarefa).join("")
+        }
+        <button class="btn-add" onclick='abrirModal(null, ${JSON.stringify(cat.nome)})'>+ Adicionar tarefa</button>
+      </div>
+    `;
+    board.appendChild(el);
+  });
+}
+
+function renderTarefa(t) {
+  const resp = t.responsaveis ? `<span class="chip chip-resp">👤 ${t.responsaveis}</span>` : "";
+  const data = t.data ? `<span class="chip chip-data">📅 ${fmtData(t.data)}</span>` : "";
+  const desc = t.descricao ? `<div class="tarefa-desc">${esc(t.descricao)}</div>` : "";
+  const optsHtml = STATUS_OPTS.map(s => `<option${s === t.status ? " selected" : ""}>${s}</option>`).join("");
+
+  return `
+    <div class="tarefa" data-id="${t.id}" data-status="${t.status}">
+      <div class="tarefa-topo">
+        <div class="tarefa-titulo">${esc(t.titulo || "(sem título)")}</div>
+        <div class="tarefa-acoes">
+          <button class="btn-acao" title="Editar" onclick='abrirModal(${JSON.stringify(t)})'>✏️</button>
+          <button class="btn-acao" title="Excluir" onclick='confirmarExcluir("${t.id}")'>🗑️</button>
+        </div>
+      </div>
+      ${desc}
+      <div class="tarefa-meta">
+        ${resp}${data}
+        <select class="status-sel" data-v="${t.status}" onchange='mudarStatus("${t.id}", this)'>
+          ${optsHtml}
+        </select>
+      </div>
+    </div>
+  `;
+}
+
+function slug(s) { return s.replace(/[^a-z0-9]/gi, "_").toLowerCase(); }
+function esc(s)  { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+/* ══════════════════════════════════════
+   FILTRO
+══════════════════════════════════════ */
+function filtrar(btn) {
+  document.querySelectorAll(".filtro-btn").forEach(b => b.classList.remove("ativo"));
+  btn.classList.add("ativo");
+  filtroAtivo = btn.dataset.filtro;
+  renderBoard();
+}
+
+/* ══════════════════════════════════════
+   MODAL CRIAR / EDITAR
+══════════════════════════════════════ */
+function abrirModal(tarefa, catNome) {
+  const novo = !tarefa;
+  document.getElementById("modal-titulo").textContent = novo ? "Nova tarefa" : "Editar tarefa";
+  document.getElementById("modal-sub").textContent    = novo ? catNome : tarefa.categoria;
+  document.getElementById("campo-id").value           = novo ? "" : tarefa.id;
+  document.getElementById("campo-categoria").value    = novo ? catNome : tarefa.categoria;
+  document.getElementById("campo-titulo").value       = novo ? "" : (tarefa.titulo || "");
+  document.getElementById("campo-desc").value         = novo ? "" : (tarefa.descricao || "");
+  document.getElementById("campo-resp").value         = novo ? "" : (tarefa.responsaveis || "");
+  document.getElementById("campo-data").value         = novo ? "" : (tarefa.data || "");
+  document.getElementById("campo-status").value       = novo ? "A fazer" : (tarefa.status || "A fazer");
+  document.getElementById("overlay-modal").classList.add("aberto");
+  setTimeout(() => document.getElementById("campo-titulo").focus(), 100);
+}
+
+function fecharModal() {
+  document.getElementById("overlay-modal").classList.remove("aberto");
+}
+
+async function salvarTarefa() {
+  const btn = document.getElementById("btn-salvar");
+  btn.disabled = true;
+  btn.textContent = "Salvando…";
+
+  const id        = document.getElementById("campo-id").value;
+  const categoria = document.getElementById("campo-categoria").value;
+  const titulo    = document.getElementById("campo-titulo").value.trim();
+  const descricao = document.getElementById("campo-desc").value.trim();
+  const responsaveis = document.getElementById("campo-resp").value.trim();
+  const data      = document.getElementById("campo-data").value;
+  const status    = document.getElementById("campo-status").value;
+  const agora     = new Date().toISOString();
+  const novo      = !id;
+
+  const payload = {
+    acao: novo ? "criar" : "editar",
+    tarefa: {
+      id:           novo ? gerarId() : id,
+      categoria,
+      titulo,
+      descricao,
+      responsaveis,
+      data,
+      status,
+      criadoEm:    novo ? agora : undefined,
+      atualizadoEm: agora,
+    }
+  };
+
+  if (configInvalida()) {
+    // modo demo local
+    if (novo) {
+      payload.tarefa.criadoEm = agora;
+      tarefas.push(payload.tarefa);
+    } else {
+      const idx = tarefas.findIndex(t => t.id === id);
+      if (idx > -1) tarefas[idx] = { ...tarefas[idx], ...payload.tarefa };
+    }
+    toast(novo ? "Tarefa criada (modo local)." : "Tarefa atualizada (modo local).");
+    fecharModal();
+    renderBoard();
+  } else {
+    try {
+      await apiPost(payload);
+      if (novo) {
+        tarefas.push(payload.tarefa);
+      } else {
+        const idx = tarefas.findIndex(t => t.id === id);
+        if (idx > -1) tarefas[idx] = { ...tarefas[idx], ...payload.tarefa };
+      }
+      toast(novo ? "✓ Tarefa criada!" : "✓ Tarefa atualizada!");
+      fecharModal();
+      renderBoard();
+    } catch (e) {
+      toast(`Erro: ${e.message}`);
+    }
+  }
+
+  btn.disabled = false;
+  btn.textContent = "Salvar";
+}
+
+/* ══════════════════════════════════════
+   MUDAR STATUS (inline)
+══════════════════════════════════════ */
+async function mudarStatus(id, sel) {
+  const novoStatus = sel.value;
+  sel.dataset.v = novoStatus;
+
+  const idx = tarefas.findIndex(t => t.id === id);
+  if (idx === -1) return;
+  const agora = new Date().toISOString();
+
+  if (configInvalida()) {
+    tarefas[idx].status = novoStatus;
+    tarefas[idx].atualizadoEm = agora;
+    renderBoard();
+    toast("Status atualizado (modo local).");
+    return;
+  }
+
+  try {
+    await apiPost({
+      acao: "editar",
+      tarefa: { ...tarefas[idx], status: novoStatus, atualizadoEm: agora }
+    });
+    tarefas[idx].status = novoStatus;
+    tarefas[idx].atualizadoEm = agora;
+    renderBoard();
+    toast("✓ Status atualizado!");
+  } catch (e) {
+    toast(`Erro: ${e.message}`);
+    // reverter visualmente
+    sel.value = tarefas[idx].status;
+    sel.dataset.v = tarefas[idx].status;
+  }
+}
+
+/* ══════════════════════════════════════
+   EXCLUIR
+══════════════════════════════════════ */
+function confirmarExcluir(id) {
+  idExcluindo = id;
+  document.getElementById("overlay-confirmar").classList.add("aberto");
+  document.getElementById("btn-excluir-ok").onclick = executarExcluir;
+}
+function fecharConfirmar() {
+  document.getElementById("overlay-confirmar").classList.remove("aberto");
+  idExcluindo = null;
+}
+
+async function executarExcluir() {
+  if (!idExcluindo) return;
+  const btn = document.getElementById("btn-excluir-ok");
+  btn.textContent = "Excluindo…";
+  btn.disabled = true;
+
+  const id = idExcluindo;
+
+  if (configInvalida()) {
+    tarefas = tarefas.filter(t => t.id !== id);
+    fecharConfirmar();
+    renderBoard();
+    toast("Tarefa excluída (modo local).");
+  } else {
+    try {
+      await apiPost({ acao: "excluir", id });
+      tarefas = tarefas.filter(t => t.id !== id);
+      fecharConfirmar();
+      renderBoard();
+      toast("✓ Tarefa excluída!");
+    } catch (e) {
+      toast(`Erro: ${e.message}`);
+    }
+  }
+
+  btn.textContent = "Excluir";
+  btn.disabled = false;
+}
+
+/* ══════════════════════════════════════
+   FECHAR MODAIS COM TECLA ESC
+══════════════════════════════════════ */
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") { fecharModal(); fecharConfirmar(); }
+});
+
+/* ══════════════════════════════════════
+   FECHAR MODAL AO CLICAR FORA
+══════════════════════════════════════ */
+document.getElementById("overlay-modal").addEventListener("click", function(e) {
+  if (e.target === this) fecharModal();
+});
+document.getElementById("overlay-confirmar").addEventListener("click", function(e) {
+  if (e.target === this) fecharConfirmar();
+});
+
+/* ══════════════════════════════════════
+   INIT
+══════════════════════════════════════ */
+carregarTarefas();
+</script>
+
+<!-- ════════════════════════════════════════════════════════
+     PAINEL DE CONFIGURAÇÃO
+     Visível apenas ao clicar em "Como configurar"
+     Não afeta o funcionamento do Kanban
+════════════════════════════════════════════════════════ -->
+<style>
+  #painel-config {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.55);
+    z-index: 300;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  #painel-config.aberto { display: flex; }
+  .config-modal {
+    background: var(--branco);
+    border-radius: var(--radius);
+    width: 100%;
+    max-width: 680px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,.3);
+    font-size: .85rem;
+    line-height: 1.6;
+  }
+  .config-modal-header {
+    background: var(--verde-escuro);
+    color: #fff;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-radius: var(--radius) var(--radius) 0 0;
+    position: sticky;
+    top: 0;
+  }
+  .config-modal-header h2 { font-size: 1rem; font-weight: 700; }
+  .config-body { padding: 20px 18px; display: flex; flex-direction: column; gap: 20px; }
+  .cfg-section h3 {
+    font-size: .82rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: var(--verde-escuro);
+    border-bottom: 2px solid var(--verde-palido);
+    padding-bottom: 4px;
+    margin-bottom: 10px;
+  }
+  .cfg-section p { color: var(--cinza-700); margin-bottom: 8px; }
+  .cfg-section ol, .cfg-section ul {
+    padding-left: 18px;
+    color: var(--cinza-700);
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .cfg-section code {
+    background: var(--cinza-100);
+    border: 1px solid var(--cinza-300);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: .8rem;
+    color: var(--verde-escuro);
+  }
+  .cfg-section .destaque {
+    background: #fef3c7;
+    border-left: 3px solid #f59e0b;
+    padding: 8px 12px;
+    border-radius: 0 6px 6px 0;
+    color: #78350f;
+    font-size: .8rem;
+  }
+  .cfg-section .destaque strong { font-weight: 700; }
+
+  /* Caixa de código copiável */
+  .code-wrap {
+    position: relative;
+    background: #0f172a;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .code-wrap pre {
+    padding: 14px 14px 14px 14px;
+    overflow-x: auto;
+    color: #e2e8f0;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: .75rem;
+    line-height: 1.6;
+    white-space: pre;
+    max-height: 340px;
+    overflow-y: auto;
+  }
+  .btn-copiar {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: var(--verde-vivo);
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    padding: 5px 11px;
+    font-size: .72rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background var(--trans);
+  }
+  .btn-copiar:hover { background: var(--verde-claro); color: var(--verde-escuro); }
+
+  /* Botão flutuante "Como configurar" */
+  #btn-ajuda {
+    position: fixed;
+    bottom: 20px;
+    right: 16px;
+    background: var(--verde-escuro);
+    color: #fff;
+    border: none;
+    border-radius: 24px;
+    padding: 10px 18px;
+    font-size: .8rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 14px var(--sombra);
+    z-index: 150;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background var(--trans);
+  }
+  #btn-ajuda:hover { background: var(--verde-vivo); }
+</style>
+
+<!-- Botão flutuante -->
+<button id="btn-ajuda" onclick="document.getElementById('painel-config').classList.add('aberto')">
+  ⚙️ Como configurar
+</button>
+
+<!-- Painel de configuração -->
+<div id="painel-config">
+  <div class="config-modal">
+    <div class="config-modal-header">
+      <h2>⚙️ Guia de Configuração</h2>
+      <button class="btn-fechar" onclick="document.getElementById('painel-config').classList.remove('aberto')">✕</button>
+    </div>
+    <div class="config-body">
+
+      <!-- PASSO 1 -->
+      <div class="cfg-section">
+        <h3>Passo 1 — Criar a Planilha Google Sheets</h3>
+        <ol>
+          <li>Acesse <strong>sheets.google.com</strong> e crie uma planilha nova.</li>
+          <li>Renomeie a aba para <code>Tarefas</code>.</li>
+          <li>O Apps Script criará o cabeçalho automaticamente na primeira execução.</li>
+        </ol>
+      </div>
+
+      <!-- PASSO 2 -->
+      <div class="cfg-section">
+        <h3>Passo 2 — Criar o Apps Script</h3>
+        <ol>
+          <li>Na planilha, clique em <strong>Extensões → Apps Script</strong>.</li>
+          <li>Apague todo o código existente.</li>
+          <li>Copie o código abaixo e cole no editor.</li>
+          <li>Salve (<code>Ctrl+S</code>) e dê um nome ao projeto.</li>
+        </ol>
+        <div class="code-wrap">
+          <button class="btn-copiar" onclick="copiarCodigo()">📋 Copiar</button>
+          <pre id="codigo-apps-script">// ════════════════════════════════════════════════════
+//  KANBAN DO EVENTO — Google Apps Script
+//  Tudo via GET (evita CORS preflight)
+// ════════════════════════════════════════════════════
+
+const SHEET_NAME = "Tarefas";
+const COLUNAS = ["id","categoria","titulo","descricao","responsaveis","data","status","criadoEm","atualizadoEm"];
+
+function doGet(e) {
+  try {
+    const acao = e.parameter.acao || "listar";
+    let resultado;
+
+    if (acao === "listar") {
+      resultado = listarTarefas();
+    } else if (acao === "criar" || acao === "editar") {
+      const tarefa = JSON.parse(decodeURIComponent(e.parameter.payload));
+      resultado = acao === "criar" ? criarTarefa(tarefa) : editarTarefa(tarefa);
+    } else if (acao === "excluir") {
+      resultado = excluirTarefa(e.parameter.id);
+    } else {
+      resultado = { error: "Ação desconhecida: " + acao };
+    }
+
+    return ContentService
+      .createTextOutput(JSON.stringify(resultado))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ error: err.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function listarTarefas() {
+  const sheet = getSheet();
+  const dados = sheet.getDataRange().getValues();
+  if (dados.length <= 1) return { tarefas: [] };
+  const cabecalho = dados[0];
+  const tarefas = dados.slice(1).map(row => {
+    const obj = {};
+    cabecalho.forEach((col, i) => { obj[col] = row[i] || ""; });
+    return obj;
+  });
+  return { tarefas };
+}
+
+function criarTarefa(t) {
+  const sheet = getSheet();
+  const agora = new Date().toISOString();
+  const linha = COLUNAS.map(col => {
+    if (col === "criadoEm" || col === "atualizadoEm") return agora;
+    return t[col] !== undefined ? t[col] : "";
+  });
+  sheet.appendRow(linha);
+  return { ok: true, id: t.id };
+}
+
+function editarTarefa(t) {
+  const sheet = getSheet();
+  const dados = sheet.getDataRange().getValues();
+  const cabecalho = dados[0];
+  const idCol = cabecalho.indexOf("id");
+  for (let i = 1; i < dados.length; i++) {
+    if (String(dados[i][idCol]) === String(t.id)) {
+      COLUNAS.forEach((col, j) => {
+        if (col === "criadoEm") return;
+        const val = col === "atualizadoEm" ? new Date().toISOString() : (t[col] !== undefined ? t[col] : dados[i][j]);
+        sheet.getRange(i + 1, j + 1).setValue(val);
+      });
+      return { ok: true };
+    }
+  }
+  return { error: "Tarefa não encontrada: " + t.id };
+}
+
+function excluirTarefa(id) {
+  const sheet = getSheet();
+  const dados = sheet.getDataRange().getValues();
+  const cabecalho = dados[0];
+  const idCol = cabecalho.indexOf("id");
+  for (let i = 1; i < dados.length; i++) {
+    if (String(dados[i][idCol]) === String(id)) {
+      sheet.deleteRow(i + 1);
+      return { ok: true };
+    }
+  }
+  return { error: "Tarefa não encontrada: " + id };
+}
+
+function getSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAME);
+    sheet.appendRow(COLUNAS);
+    const r = sheet.getRange(1, 1, 1, COLUNAS.length);
+    r.setBackground("#1b4332");
+    r.setFontColor("#ffffff");
+    r.setFontWeight("bold");
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}</pre>
+        </div>
+      </div>
+
+      <!-- PASSO 3 -->
+      <div class="cfg-section">
+        <h3>Passo 3 — Publicar como Web App</h3>
+        <ol>
+          <li>No editor do Apps Script, clique em <strong>Implantar → Nova implantação</strong>.</li>
+          <li>Clique no ícone ⚙️ ao lado de "Tipo" e escolha <strong>App da Web</strong>.</li>
+          <li>Configure:<br>
+            — <strong>Executar como:</strong> Eu mesmo<br>
+            — <strong>Quem tem acesso:</strong> <strong>Qualquer pessoa</strong>
+          </li>
+          <li>Clique em <strong>Implantar</strong> e autorize o acesso.</li>
+          <li>Copie a <strong>URL do Web App</strong> gerada (começa com <code>https://script.google.com/macros/s/…/exec</code>).</li>
+        </ol>
+        <div class="destaque">
+          <strong>⚠️ Atenção:</strong> Sempre que editar o código do Apps Script, crie uma <strong>nova implantação</strong>. Gerenciar a implantação existente não atualiza o código em produção.
+        </div>
+      </div>
+
+      <!-- PASSO 4 -->
+      <div class="cfg-section">
+        <h3>Passo 4 — Colocar a URL neste arquivo</h3>
+        <ol>
+          <li>Abra o <code>index.html</code> em um editor de texto.</li>
+          <li>Localize esta linha no início do arquivo:</li>
+        </ol>
+        <div class="code-wrap" style="margin-top:8px">
+          <pre style="max-height:60px">const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzrriq1x17UzqN0hRvVFcdBB4CTYfKSagnJ4DdD3KcRI6mYjITaZ1Zp68I27CxLJy6L/exec";</pre>
+        </div>
+        <ol start="3" style="margin-top:8px">
+          <li>Substitua <code>COLE_A_URL_AQUI</code> pela URL copiada no Passo 3.</li>
+          <li>Salve o arquivo e faça upload no GitHub.</li>
+        </ol>
+      </div>
+
+      <!-- PASSO 5 -->
+      <div class="cfg-section">
+        <h3>Passo 5 — Publicar no GitHub Pages</h3>
+        <ol>
+          <li>Crie um repositório <strong>público</strong> no GitHub.</li>
+          <li>Faça upload do <code>index.html</code>.</li>
+          <li>Vá em <strong>Settings → Pages</strong>, selecione a branch <code>main</code> e salve.</li>
+          <li>Aguarde alguns minutos e acesse: <code>https://seu-usuario.github.io/nome-do-repo/</code></li>
+        </ol>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  // Fechar painel com ESC
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") document.getElementById("painel-config").classList.remove("aberto");
+  });
+  document.getElementById("painel-config").addEventListener("click", function(e) {
+    if (e.target === this) this.classList.remove("aberto");
+  });
+
+  function copiarCodigo() {
+    const code = document.getElementById("codigo-apps-script").textContent;
+    navigator.clipboard.writeText(code).then(() => {
+      const btn = document.querySelector(".btn-copiar");
+      btn.textContent = "✓ Copiado!";
+      setTimeout(() => btn.textContent = "📋 Copiar", 2000);
+    });
+  }
+</script>
+
+</body>
+</html>
